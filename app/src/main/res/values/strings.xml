@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SoftRouter</string>
+    <string name="start_router">启动路由</string>
+    <string name="stop_router">停止路由</string>
+    <string name="dashboard_url">管理后台地址</string>
+    <string name="shizuku_status">Shizuku 状态</string>
+    <string name="router_status">路由状态</string>
+    <string name="open_dashboard">打开管理后台</string>
+    <string name="settings">设置</string>
+    <string name="channel_name">Router Service</string>
+    <string name="channel_desc">Soft router foreground service</string>
+</resources>
+
+</content>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoftRouter Dashboard</title>
+<style>
+:root {
+  --bg: #0f0f13; --surface: #1a1a24; --surface2: #24243a;
+  --primary: #7c5cfc; --primary-glow: rgba(124,92,252,0.3);
+  --text: #e8e6f0; --text2: #9896a8; --success: #34d399;
+  --danger: #f87171; --warning: #fbbf24; --border: #2a2a3e;
+  --radius: 16px; --glass: rgba(26,26,36,0.7);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+.glass { background:var(--glass); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:var(--radius); }
+header { display:flex; align-items:center; justify-content:space-between; padding:20px 24px; background:linear-gradient(135deg,var(--surface),var(--surface2)); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+header h1 { font-size:1.4rem; font-weight:700; background:linear-gradient(135deg,#7c5cfc,#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.status-badge { display:flex; align-items:center; gap:8px; padding:6px 16px; border-radius:20px; font-size:.85rem; font-weight:600; }
+.status-badge.running { background:rgba(52,211,153,0.15); color:var(--success); }
+.status-badge.stopped { background:rgba(248,113,113,0.15); color:var(--danger); }
+.pulse { width:8px; height:8px; border-radius:50%; animation:pulse 2s infinite; }
+.running .pulse { background:var(--success); box-shadow:0 0 8px var(--success); }
+.stopped .pulse { background:var(--danger); }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+nav { display:flex; gap:4px; padding:12px 24px; overflow-x:auto; }
+nav button { padding:8px 20px; border:none; border-radius:10px; background:transparent; color:var(--text2); font-size:.9rem; cursor:pointer; transition:all .2s; white-space:nowrap; font-weight:500; }
+nav button.active { background:var(--primary); color:#fff; box-shadow:0 4px 15px var(--primary-glow); }
+nav button:hover:not(.active) { background:var(--surface2); color:var(--text); }
+main { padding:20px 24px; max-width:1200px; margin:0 auto; }
+.tab { display:none; } .tab.active { display:block; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:20px; }
+.card { padding:20px; }
+.card h3 { font-size:.85rem; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+.card .value { font-size:2rem; font-weight:700; }
+.card .sub { font-size:.8rem; color:var(--text2); margin-top:4px; }
+.btn { padding:10px 24px; border:none; border-radius:10px; font-size:.9rem; font-weight:600; cursor:pointer; transition:all .2s; }
+.btn-primary { background:var(--primary); color:#fff; box-shadow:0 4px 15px var(--primary-glow); }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px var(--primary-glow); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-sm { padding:6px 14px; font-size:.8rem; border-radius:8px; }
+.actions { display:flex; gap:10px; margin-bottom:20px; }
+input,select { padding:10px 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); font-size:.9rem; outline:none; transition:border .2s; }
+input:focus { border-color:var(--primary); }
+.form-row { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; align-items:end; }
+.form-group { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
+.form-group label { font-size:.75rem; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; }
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th,td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); font-size:.85rem; }
+th { color:var(--text2); font-weight:600; text-transform:uppercase; font-size:.75rem; letter-spacing:.5px; }
+tr:hover td { background:rgba(124,92,252,0.05); }
+canvas { width:100%!important; height:200px!important; border-radius:12px; background:var(--surface); margin-top:12px; }
+.toast { position:fixed; bottom:24px; right:24px; padding:12px 24px; border-radius:12px; font-size:.9rem; font-weight:500; z-index:9999; animation:slideIn .3s ease; }
+.toast.success { background:var(--success); color:#000; }
+.toast.error { background:var(--danger); color:#fff; }
+@keyframes slideIn { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+@media(max-width:600px) { main{padding:12px} .grid{grid-template-columns:1fr} header{padding:14px 16px} nav{padding:8px 12px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#x1F6E1; SoftRouter</h1>
+  <div id="statusBadge" class="status-badge stopped"><div class="pulse"></div><span>已停止</span></div>
+</header>
+<nav id="tabs">
+  <button class="active" data-tab="overview">总览</button>
+  <button data-tab="firewall">防火墙</button>
+  <button data-tab="dhcp">DHCP</button>
+  <button data-tab="portfwd">端口转发</button>
+  <button data-tab="clients">客户端</button>
+  <button data-tab="traffic">流量</button>
+</nav>
+<main>
+  <div id="overview" class="tab active">
+    <div class="actions">
+      <button class="btn btn-primary" onclick="startRouter()">&#9654; 启动路由</button>
+      <button class="btn btn-danger" onclick="stopRouter()">&#9632; 停止路由</button>
+    </div>
+    <div class="grid">
+      <div class="card glass"><h3>运行状态</h3><div class="value" id="vStatus">--</div><div class="sub" id="vUptime">等待中...</div></div>
+      <div class="card glass"><h3>IP 转发</h3><div class="value" id="vForward">--</div><div class="sub">net.ipv4.ip_forward</div></div>
+      <div class="card glass"><h3>在线客户端</h3><div class="value" id="vClients">0</div><div class="sub">ARP 表扫描</div></div>
+      <div class="card glass"><h3>流量统计</h3><div class="value" id="vTraffic">0 B</div><div class="sub">RX / TX</div></div>
+    </div>
+  </div>
+  <div id="firewall" class="tab">
+    <div class="card glass">
+      <h3>添加防火墙规则</h3>
+      <div class="form-row">
+        <div class="form-group" style="flex:3"><label>iptables 规则</label><input id="fwRule" placeholder="-A INPUT -p tcp --dport 22 -j ACCEPT"></div>
+        <button class="btn btn-primary btn-sm" onclick="addFirewall()" style="align-self:end;margin-bottom:4px">添加</button>
+      </div>
+    </div>
+    <div class="card glass" style="margin-top:16px"><h3>当前规则</h3><table><thead><tr><th>规则</th><th>状态</th></tr></thead><tbody id="fwTable"></tbody></table></div>
+  </div>
+  <div id="dhcp" class="tab">
+    <div class="card glass">
+      <h3>DHCP 配置</h3>
+      <div class="form-row">
+        <div class="form-group"><label>起始 IP</label><input id="dhcpStart" value="192.168.43.100"></div>
+        <div class="form-group"><label>结束 IP</label><input id="dhcpEnd" value="192.168.43.200"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>租约时间</label><input id="dhcpLease" value="12h"></div>
+        <div class="form-group"><label>DNS 服务器</label><input id="dhcpDns" value="8.8.8.8"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveDhcp()" style="margin-top:8px">保存配置</button>
+    </div>
+  </div>
+  <div id="portfwd" class="tab">
+    <div class="card glass">
+      <h3>添加端口转发</h3>
+      <div class="form-row">
+        <div class="form-group"><label>源端口</label><input id="pfSrc" placeholder="8080"></div>
+        <div class="form-group"><label>目标 IP</label><input id="pfDstIp" placeholder="192.168.43.10"></div>
+        <div class="form-group"><label>目标端口</label><input id="pfDstPort" placeholder="80"></div>
+        <div class="form-group"><label>协议</label><select id="pfProto"><option>tcp</option><option>udp</option></select></div>
+        <button class="btn btn-primary btn-sm" onclick="addPortForward()" style="align-self:end;margin-bottom:4px">添加</button>
+      </div>
+    </div>
+    <div class="card glass" style="margin-top:16px"><h3>转发列表</h3><table><thead><tr><th>源端口</th><th>目标</th><th>协议</th></tr></thead><tbody id="pfTable"></tbody></table></div>
+  </div>
+  <div id="clients" class="tab">
+    <div class="card glass"><h3>在线设备</h3><button class="btn btn-sm btn-primary" onclick="loadClients()" style="margin-bottom:12px">刷新</button><table><thead><tr><th>IP 地址</th><th>MAC 地址</th><th>接口</th></tr></thead><tbody id="clientTable"></tbody></table></div>
+  </div>
+  <div id="traffic" class="tab">
+    <div class="card glass"><h3>实时流量监控</h3><canvas id="trafficCanvas"></canvas><div class="sub" style="margin-top:8px;text-align:center">每 3 秒自动刷新</div></div>
+  </div>
+</main>
+<script>
+const API = '';
+let trafficData = []; let chartCtx, chartW, chartH;
+
+document.querySelectorAll('#tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'clients') loadClients();
+    if (btn.dataset.tab === 'traffic') initChart();
+  });
+});
+
+function toast(msg, type='success') {
+  const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
+}
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  try { const r = await fetch(API+path, opts); return await r.json(); } catch(e) { toast(e.message,'error'); return null; }
+}
+
+async function refreshStatus() {
+  const d = await api('/api/status');
+  if (!d) return;
+  const badge = document.getElementById('statusBadge');
+  if (d.running) { badge.className='status-badge running'; badge.innerHTML='<div class="pulse"></div><span>运行中</span>'; }
+  else { badge.className='status-badge stopped'; badge.innerHTML='<div class="pulse"></div><span>已停止</span>'; }
+  document.getElementById('vStatus').textContent = d.running ? '运行中' : '已停止';
+  document.getElementById('vStatus').style.color = d.running ? 'var(--success)' : 'var(--danger)';
+  const u = d.uptime; document.getElementById('vUptime').textContent = d.running ? `${Math.floor(u/3600)}h ${Math.floor(u%3600/60)}m ${u%60}s` : '--';
+  document.getElementById('vForward').textContent = d.ipForwarding ? '已启用' : '未启用';
+  document.getElementById('vForward').style.color = d.ipForwarding ? 'var(--success)' : 'var(--text2)';
+  document.getElementById('vClients').textContent = d.clients;
+  const rx = fmtBytes(d.rxBytes), tx = fmtBytes(d.txBytes);
+  document.getElementById('vTraffic').textContent = `${rx} / ${tx}`;
+  trafficData.push({rx:d.rxBytes, tx:d.txBytes, t:Date.now()});
+  if (trafficData.length > 60) trafficData.shift();
+  drawChart();
+}
+
+function fmtBytes(b) { if(!b)return'0B'; const u=['B','KB','MB','GB']; let i=0; while(b>=1024&&i<3){b/=1024;i++} return b.toFixed(1)+u[i]; }
+
+async function startRouter() { const r=await api('/api/start','POST'); if(r?.success){toast('路由已启动');refreshStatus()}else toast(r?.message||'启动失败','error'); }
+async function stopRouter() { const r=await api('/api/stop','POST'); if(r?.success){toast('路由已停止');refreshStatus()}else toast('停止失败','error'); }
+
+async function addFirewall() {
+  const rule=document.getElementById('fwRule').value; if(!rule)return toast('请输入规则','error');
+  const r=await api('/api/firewall','POST',{rule}); if(r?.success){toast('规则已添加');document.getElementById('fwRule').value='';loadFirewall()}else toast(r?.message,'error');
+}
+async function loadFirewall() {
+  const d=await api('/api/firewall'); if(!d)return;
+  document.getElementById('fwTable').innerHTML=d.rules.map(r=>`<tr><td><code>${r.rule}</code></td><td style="color:var(--success)">${r.active}</td></tr>`).join('')||'<tr><td colspan="2" style="color:var(--text2)">暂无规则</td></tr>';
+}
+
+async function saveDhcp() {
+  const cfg={rangeStart:document.getElementById('dhcpStart').value,rangeEnd:document.getElementById('dhcpEnd').value,leaseTime:document.getElementById('dhcpLease').value,dns:document.getElementById('dhcpDns').value};
+  const r=await api('/api/dhcp','POST',cfg); if(r?.success)toast('DHCP 已更新'); else toast('更新失败','error');
+}
+async function loadDhcp() {
+  const d=await api('/api/dhcp'); if(!d)return;
+  document.getElementById('dhcpStart').value=d.rangeStart||''; document.getElementById('dhcpEnd').value=d.rangeEnd||'';
+  document.getElementById('dhcpLease').value=d.leaseTime||''; document.getElementById('dhcpDns').value=d.dns||'';
+}
+
+async function addPortForward() {
+  const p={srcPort:document.getElementById('pfSrc').value,dstIp:document.getElementById('pfDstIp').value,dstPort:document.getElementById('pfDstPort').value,proto:document.getElementById('pfProto').value};
+  if(!p.srcPort||!p.dstIp||!p.dstPort)return toast('请填写完整','error');
+  const r=await api('/api/portforward','POST',p); if(r?.success){toast('转发已添加');loadPortForwards();['pfSrc','pfDstIp','pfDstPort'].forEach(id=>document.getElementById(id).value='')}else toast(r?.message,'error');
+}
+async function loadPortForwards() {
+  const d=await api('/api/portforward'); if(!d)return;
+  document.getElementById('pfTable').innerHTML=d.forwards.map(f=>`<tr><td>${f.srcPort}</td><td>${f.dstIp}:${f.dstPort}</td><td>${f.proto}</td></tr>`).join('')||'<tr><td colspan="3" style="color:var(--text2)">暂无转发</td></tr>';
+}
+
+async function loadClients() {
+  const d=await api('/api/clients'); if(!d)return;
+  document.getElementById('clientTable').innerHTML=d.clients.map(c=>`<tr><td>${c.ip||'--'}</td><td><code>${c.mac||'--'}</code></td><td>${c.iface||'--'}</td></tr>`).join('')||'<tr><td colspan="3" style="color:var(--text2)">无在线设备</td></tr>';
+}
+
+function initChart() {
+  const c=document.getElementById('trafficCanvas'); chartCtx=c.getContext('2d');
+  c.width=c.offsetWidth*2; c.height=400; chartW=c.width; chartH=c.height;
+}
+
+function drawChart() {
+  if(!chartCtx||document.getElementById('traffic').style.display==='none')return;
+  const ctx=chartCtx, w=chartW, h=chartH, pad=40;
+  ctx.clearRect(0,0,w,h);
+  if(trafficData.length<2)return;
+  const vals=trafficData.map((_,i)=>{if(i===0)return 0;return trafficData[i].rx-trafficData[i-1].rx});
+  const max=Math.max(...vals,1)*1.2;
+  ctx.strokeStyle='rgba(124,92,252,0.3)'; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){const y=pad+(h-pad*2)*(i/4);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(w-pad,y);ctx.stroke();ctx.fillStyle='#9896a8';ctx.font='18px sans-serif';ctx.fillText(fmtBytes(max*(1-i/4)),4,y+5)}
+  const drawLine=(data,color)=>{ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineJoin='round';
+    data.forEach((v,i)=>{const x=pad+i*(w-pad*2)/(data.length-1);const y=h-pad-(v/max)*(h-pad*2);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke();
+    ctx.lineTo(pad+(data.length-1)*(w-pad*2)/(data.length-1),h-pad);ctx.lineTo(pad,h-pad);ctx.closePath();ctx.fillStyle=color.replace('1)','0.1)');ctx.fill()};
+  drawLine(vals,'rgba(124,92,252,1)');
+  const txVals=trafficData.map((_,i)=>{if(i===0)return 0;return trafficData[i].tx-trafficData[i-1].tx});
+  drawLine(txVals,'rgba(52,211,153,1)');
+}
+
+setInterval(refreshStatus, 3000);
+refreshStatus(); loadFirewall(); loadDhcp(); loadPortForwards();
+</script>
+</body>
+</html>
+
+</content>
