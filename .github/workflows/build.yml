@@ -19,22 +19,32 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Generate Gradle Wrapper
+      - name: Setup Gradle Wrapper
         run: |
+          mkdir -p gradle/wrapper
+          GRADLE_VERSION=8.5
+          DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          cat > gradle/wrapper/gradle-wrapper.properties << EOF
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=${DIST_URL}
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar || \
+          curl -sL "https://github.com/nicoulaj/archlinux-packages/raw/main/gradle/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar || true
           if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.5 || {
-              curl -sL https://services.gradle.org/distributions/gradle-8.5-bin.zip -o /tmp/gradle.zip
-              unzip -q /tmp/gradle.zip -d /opt
-              /opt/gradle-8.5/bin/gradle wrapper --gradle-version 8.5
-            }
+            curl -sL "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}/gradlew" -o gradlew
           fi
           chmod +x gradlew
+          ls -la gradlew gradle/wrapper/
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -54,3 +64,5 @@ jobs:
           draft: false
           prerelease: true
           files: app/build/outputs/apk/debug/*.apk
+
+</content>
