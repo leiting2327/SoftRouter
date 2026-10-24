@@ -18,15 +18,23 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Gradle Wrapper
         run: |
-          gradle wrapper --gradle-version 8.5
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.5 || {
+              curl -sL https://services.gradle.org/distributions/gradle-8.5-bin.zip -o /tmp/gradle.zip
+              unzip -q /tmp/gradle.zip -d /opt
+              /opt/gradle-8.5/bin/gradle wrapper --gradle-version 8.5
+            }
+          fi
           chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -46,5 +54,3 @@ jobs:
           draft: false
           prerelease: true
           files: app/build/outputs/apk/debug/*.apk
-
-</content>

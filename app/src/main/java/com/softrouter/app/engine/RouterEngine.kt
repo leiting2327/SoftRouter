@@ -26,6 +26,14 @@ object RouterEngine {
         register(SambaModule())
         register(Aria2Module())
         register(TrafficSplitModule())
+        register(MultiWanModule())
+        register(VlanModule())
+        register(OpenVpnModule())
+        register(TransparentProxyModule())
+        register(DlnaModule())
+        register(NasModule())
+        register(QbittorrentModule())
+        register(DockerModule())
     }
 
     private fun register(module: RouterModule) {
